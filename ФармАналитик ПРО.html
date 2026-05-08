@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ФармАналитик ПРО — Администратор AI</title>
+
+<!-- Библиотеки -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+body{
+    font-family:Arial;
+    background:#f4f6f8;
+    margin:0;
+    padding:20px;
+}
+
+.container{
+    max-width:1200px;
+    margin:auto;
+    background:white;
+    padding:20px;
+    border-radius:16px;
+    box-shadow:0 10px 30px rgba(0,0,0,0.1);
+}
+
+h1,h2{
+    color:#1b4332;
+}
+
+.section{
+    margin-bottom:30px;
+}
+
+input,button{
+    padding:12px;
+    border-radius:10px;
+    border:1px solid #ccc;
+    margin-top:10px;
+}
+
+button{
+    background:#2d6a4f;
+    color:white;
+    cursor:pointer;
+    border:none;
+}
+
+button:hover{
+    background:#1b4332;
+}
+
+.card{
+    background:#f8f9fa;
+    padding:15px;
+    border-radius:12px;
+    margin-top:15px;
+}
+
+.alert{
+    background:#ffe5e5;
+    padding:10px;
+    border-radius:10px;
+    margin-top:10px;
+}
+
+.good{
+    background:#d8f3dc;
+    padding:10px;
+    border-radius:10px;
+    margin-top:10px;
+}
+
+table{
+    width:100%;
+    border-collapse:collapse;
+    margin-top:15px;
+}
+
+th,td{
+    border:1px solid #ccc;
+    padding:10px;
+    text-align:left;
+}
+
+th{
+    background:#2d6a4f;
+    color:white;
+}
+
+.summary{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+    gap:15px;
+}
+
+.summary-box{
+    background:#edf6f9;
+    padding:20px;
+    border-radius:12px;
+    text-align:center;
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+
+<h1>💊 ФармАналитик ПРО — Администратор AI</h1>
+
+<p>
+Система анализа аптечных запасов для больничной аптеки.
+Загружает Excel-файлы и помогает анализировать остатки, неликвиды,
+сроки годности, дефицит и потребность отделений.
+</p>
+
+<!-- ЗАГРУЗКА -->
+<div class="section">
+<h2>📂 Загрузка файлов</h2>
+<input type="file" id="excelFile" accept=".xlsx,.xls,.csv">
+<button onclick="readExcel()">Загрузить и проанализировать</button>
+</div>
+
+<!-- СВОДКА -->
+<div class="section">
+<h2>📊 Сводная аналитика</h2>
+<div class="summary">
+<div class="summary-box">
+<h3 id="totalItems">0</h3>
+<p>Всего позиций</p>
+</div>
+
+<div class="summary-box">
+<h3 id="lowStockCount">0</h3>
+<p>Дефицитных позиций</p>
+</div>
+
+<div class="summary-box">
+<h3 id="deadStockCount">0</h3>
+<p>Неликвидов</p>
+</div>
+
+<div class="summary-box">
+<h3 id="expiryCount">0</h3>
+<p>Скоро истекает срок</p>
+</div>
+</div>
+</div>
+
+<!-- AI АНАЛИЗ -->
+<div class="section">
+<h2>🤖 AI Анализ запасов</h2>
+<div id="analysisResult" class="card"></div>
+</div>
+
+<!-- НЕЛИКВИДЫ -->
+<div class="section">
+<h2>📦 Неликвидные позиции</h2>
+<div id="deadStockTable"></div>
+</div>
+
+<!-- ДЕФИЦИТ -->
+<div class="section">
+<h2>⚠️ Позиции с низким запасом</h2>
+<div id="lowStockTable"></div>
+</div>
+
+<!-- СРОКИ -->
+<div class="section">
+<h2>⏳ Контроль сроков годности</h2>
+<div id="expiryTable"></div>
+</div>
+
+<!-- ГРАФИК -->
+<div class="section">
+<h2>📈 График запасов</h2>
+<canvas id="stockChart"></canvas>
+</div>
+
+</div>
+
+<script>
+
+let pharmacyData = [];
+let stockChart;
+
+// ===========================
+// ЧТЕНИЕ EXCEL
+// ===========================
+function readExcel(){
+
+    const fileInput = document.getElementById('excelFile');
+    const file = fileInput.files[0];
+
+    if(!file){
+        alert('Выберите Excel файл');
+        return;
+    }
+
+    const reader = new FileReader();
+
+    reader.onload = function(e){
+
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, {type:'array'});
+
+        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+
+        pharmacyData = XLSX.utils.sheet_to_json(firstSheet);
+
+        analyzeData();
+    }
+
+    reader.readAsArrayBuffer(file);
+}
+
+// ===========================
+// AI АНАЛИЗ
+// ===========================
+function analyzeData(){
+
+    if(pharmacyData.length === 0){
+        alert('Нет данных');
+        return;
+    }
+
+    document.getElementById('totalItems').innerText = pharmacyData.length;
+
+    let lowStock = [];
+    let deadStock = [];
+    let expirySoon = [];
+
+    pharmacyData.forEach(item => {
+
+        // Ожидаемые поля из Excel:
+        // Наименование
+        // Остаток
+        // Расход_в_месяц
+        // Последний_расход
+        // Срок_годности
+
+        const name = item['Наименование'] || 'Без названия';
+
+        const stock = Number(item['Остаток']) || 0;
+        const расход = Number(item['Расход_в_месяц']) || 0;
+
+        const lastUsage = Number(item['Последний_расход']) || 0;
+
+        const expiry = item['Срок_годности'] || '';
+
+        // ======================
+        // НЕЛИКВИДЫ
+        // ======================
+        if(lastUsage >= 3){
+            deadStock.push({
+                name,
+                stock,
+                lastUsage
+            });
+        }
+
+        // ======================
+        // НИЗКИЙ ЗАПАС
+        // ======================
+        const monthsLeft = расход > 0 ? stock / расход : 999;
+
+        if(monthsLeft < 1.5){
+            lowStock.push({
+                name,
+                stock,
+                расход,
+                monthsLeft: monthsLeft.toFixed(1)
+            });
+        }
+
+        // ======================
+        // СРОКИ ГОДНОСТИ
+        // ======================
+        if(expiry){
+
+            const expiryDate = new Date(expiry);
+            const today = new Date();
+
+            const diffTime = expiryDate - today;
+            const diffDays = diffTime / (1000*60*60*24);
+
+            if(diffDays < 90){
+                expirySoon.push({
+                    name,
+                    expiry,
+                    diffDays: Math.round(diffDays)
+                });
+            }
+        }
+    });
+
+    // ===========================
+    // ОБНОВЛЕНИЕ СЧЁТЧИКОВ
+    // ===========================
+    document.getElementById('lowStockCount').innerText = lowStock.length;
+    document.getElementById('deadStockCount').innerText = deadStock.length;
+    document.getElementById('expiryCount').innerText = expirySoon.length;
+
+    // ===========================
+    // AI ОТЧЁТ
+    // ===========================
+    let report = `
+    <div class="good">
+    ✔ Анализ завершён
+    </div>
+
+    <p><b>Всего позиций:</b> ${pharmacyData.length}</p>
+
+    <p><b>Дефицитных:</b> ${lowStock.length}</p>
+
+    <p><b>Неликвидных:</b> ${deadStock.length}</p>
+
+    <p><b>Риск по срокам годности:</b> ${expirySoon.length}</p>
+    `;
+
+    // AI рекомендации
+    if(lowStock.length > 0){
+        report += `
+        <div class="alert">
+        ⚠️ Требуется срочная заявка на дефицитные позиции.
+        </div>
+        `;
+    }
+
+    if(deadStock.length > 0){
+        report += `
+        <div class="alert">
+        ⚠️ Обнаружены неликвиды без расхода более 3 месяцев.
+        </div>
+        `;
+    }
+
+    document.getElementById('analysisResult').innerHTML = report;
+
+    // ===========================
+    // ТАБЛИЦЫ
+    // ===========================
+    renderDeadStock(deadStock);
+    renderLowStock(lowStock);
+    renderExpiry(expirySoon);
+
+    // ===========================
+    // ГРАФИК
+    // ===========================
+    renderChart(lowStock.length, deadStock.length, expirySoon.length);
+}
+
+// ===========================
+// ТАБЛИЦА НЕЛИКВИДОВ
+// ===========================
+function renderDeadStock(data){
+
+    let html = `
+    <table>
+    <tr>
+    <th>Наименование</th>
+    <th>Остаток</th>
+    <th>Нет расхода (мес)</th>
+    </tr>
+    `;
+
+    data.forEach(item => {
+        html += `
+        <tr>
+        <td>${item.name}</td>
+        <td>${item.stock}</td>
+        <td>${item.lastUsage}</td>
+        </tr>
+        `;
+    });
+
+    html += '</table>';
+
+    document.getElementById('deadStockTable').innerHTML = html;
+}
+
+// ===========================
+// ТАБЛИЦА ДЕФИЦИТА
+// ===========================
+function renderLowStock(data){
+
+    let html = `
+    <table>
+    <tr>
+    <th>Наименование</th>
+    <th>Остаток</th>
+    <th>Расход/мес</th>
+    <th>Хватит на</th>
+    </tr>
+    `;
+
+    data.forEach(item => {
+        html += `
+        <tr>
+        <td>${item.name}</td>
+        <td>${item.stock}</td>
+        <td>${item.расход}</td>
+        <td>${item.monthsLeft} мес</td>
+        </tr>
+        `;
+    });
+
+    html += '</table>';
+
+    document.getElementById('lowStockTable').innerHTML = html;
+}
+
+// ===========================
+// ТАБЛИЦА СРОКОВ
+// ===========================
+function renderExpiry(data){
+
+    let html = `
+    <table>
+    <tr>
+    <th>Наименование</th>
+    <th>Срок годности</th>
+    <th>Осталось дней</th>
+    </tr>
+    `;
+
+    data.forEach(item => {
+        html += `
+        <tr>
+        <td>${item.name}</td>
+        <td>${item.expiry}</td>
+        <td>${item.diffDays}</td>
+        </tr>
+        `;
+    });
+
+    html += '</table>';
+
+    document.getElementById('expiryTable').innerHTML = html;
+}
+
+// ===========================
+// ГРАФИК
+// ===========================
+function renderChart(low, dead, expiry){
+
+    const ctx = document.getElementById('stockChart');
+
+    if(stockChart){
+        stockChart.destroy();
+    }
+
+    stockChart = new Chart(ctx, {
+        type:'bar',
+        data:{
+            labels:['Дефицит','Неликвиды','Сроки'],
+            datasets:[{
+                label:'Количество позиций',
+                data:[low, dead, expiry]
+            }]
+        }
+    });
+}
+
+</script>
+
+</body>
+</html>

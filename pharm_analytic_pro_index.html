@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ФармАналитик ПРО — Администратор AI</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    
+<div class="container">
+    <h1>💊 ФармАналитик ПРО — Администратор AI</h1>
+    <p>
+        Система анализа аптечных запасов для больничной аптеки.
+        Загружает Excel-файлы и помогает анализировать остатки, неликвиды,
+        сроки годности, дефицит и потребность отделений.
+    </p>
+
+    <!-- ЗАГРУЗКА -->
+    <div class="section">
+        <h2>📂 Загрузка файлов</h2>
+        <input type="file" id="excelFile" accept=".xlsx,.xls,.csv">
+        <button onclick="readExcel()">Загрузить и проанализировать</button>
+    </div>
+
+    <!-- СВОДКА -->
+    <div class="section">
+        <h2>📊 Сводная аналитика</h2>
+        <div class="summary">
+            <div class="summary-box">
+                <h3 id="totalItems">0</h3>
+                <p>Всего позиций</p>
+            </div>
+            <div class="summary-box">
+                <h3 id="lowStockCount">0</h3>
+                <p>Дефицитных позиций</p>
+            </div>
+            <div class="summary-box">
+                <h3 id="deadStockCount">0</h3>
+                <p>Неликвидов</p>
+            </div>
+            <div class="summary-box">
+                <h3 id="expiryCount">0</h3>
+                <p>Скоро истекает срок</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI АНАЛИЗ -->
+    <div class="section">
+        <h2>🤖 AI Анализ запасов</h2>
+        <div id="analysisResult" class="card"></div>
+    </div>
+
+    <!-- НЕЛИКВИДЫ -->
+    <div class="section">
+        <h2>📦 Неликвидные позиции</h2>
+        <div id="deadStockTable"></div>
+    </div>
+
+    <!-- ДЕФИЦИТ -->
+    <div class="section">
+        <h2>⚠️ Позиции с низким запасом</h2>
+        <div id="lowStockTable"></div>
+    </div>
+
+    <!-- СРОКИ -->
+    <div class="section">
+        <h2>⏳ Контроль сроков годности</h2>
+        <div id="expiryTable"></div>
+    </div>
+
+    <!-- ГРАФИК -->
+    <div class="section">
+        <h2>📈 График запасов</h2>
+        <canvas id="stockChart"></canvas>
+    </div>
+</div>
+
+    <script src="js/app.js"></script>
+</body>
+</html>
